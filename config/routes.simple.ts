@@ -41,7 +41,7 @@ export default [
   },
   {
     path: '/',
-    redirect: '/welcome',
+    redirect: '/user/login',
   },
   {
     component: './exception/404',

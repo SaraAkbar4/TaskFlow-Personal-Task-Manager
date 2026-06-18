@@ -32,13 +32,13 @@ const Search: FC<SearchProps> = () => {
         : match?.pathname.substring(0, match.pathname.lastIndexOf('/'));
     switch (key) {
       case 'articles':
-        history.push(`${url}/articles`);
+        history.replace(`${url}/articles`);
         break;
       case 'applications':
-        history.push(`${url}/applications`);
+        history.replace(`${url}/applications`);
         break;
       case 'projects':
-        history.push(`${url}/projects`);
+        history.replace(`${url}/projects`);
         break;
       default:
         break;

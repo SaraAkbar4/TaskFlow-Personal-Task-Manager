@@ -6,12 +6,9 @@ export interface StateType {
 }
 
 export interface UserRegisterParams {
-  mail: string;
+  name: string;
+  email: string;
   password: string;
-  confirm: string;
-  mobile: string;
-  captcha: string;
-  prefix: string;
 }
 
 export async function fakeRegister(params: UserRegisterParams) {
