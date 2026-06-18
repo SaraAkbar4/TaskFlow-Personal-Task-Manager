@@ -1,14 +1,24 @@
-import { PlusOutlined } from '@ant-design/icons';
-import { history } from '@umijs/max';
-import { Button, Card, Col, Row, Statistic, Table, Tag } from 'antd';
-import { useEffect, useState } from 'react';
-import './index.less';
-import { DownOutlined } from '@ant-design/icons';
-import type { MenuProps } from 'antd';
-import { Dropdown } from 'antd';
+import {
+  Button,
+  Card,
+  Col,
+  DatePicker,
+  Dropdown,
+  Form,
+  Input,
+  Modal,
+  message,
+  Row,
+  Select,
+  Space,
+  Table,
+} from 'antd';
+import type { ColumnsType } from 'antd/es/table';
+import dayjs from 'dayjs';
+import React, { useState } from 'react';
 
 interface Task {
-  id: number;
+  key: string;
   title: string;
   description: string;
   priority: string;
@@ -17,169 +27,220 @@ interface Task {
   createdAt: string;
 }
 
-const Dashboard = () => {
-  const [tasks, setTasks] = useState<Task[]>([]);
+const disablePastDates = (current: any) =>
+  current && current < dayjs().startOf('day');
 
-  useEffect(() => {
-    const storedTasks = JSON.parse(localStorage.getItem('tasks') || '[]');
+const ViewTasks: React.FC = () => {
+  const [form] = Form.useForm();
+  const [isModalOpen, setIsModalOpen] = useState(false);
 
-    if (storedTasks.length > 0) {
-      setTasks(storedTasks);
-    } else {
-      const dummyTasks: Task[] = [
-        {
-          id: 1,
-          title: 'Build Dashboard',
-          description: 'Create dashboard UI using Ant Design',
-          priority: 'High',
-          dueDate: '2026-06-20',
-          status: 'Pending',
-          createdAt: '2026-06-17',
-        },
-        {
-          id: 2,
-          title: 'Setup Authentication',
-          description: 'Implement login and logout functionality',
-          priority: 'High',
-          dueDate: '2026-06-21',
-          status: 'Completed',
-          createdAt: '2026-06-16',
-        },
-        {
-          id: 3,
-          title: 'Create Task Module',
-          description: 'Add task creation page and form validation',
-          priority: 'Medium',
-          dueDate: '2026-06-22',
-          status: 'Pending',
-          createdAt: '2026-06-15',
-        },
-        {
-          id: 4,
-          title: 'Update Tasks',
-          description: 'Allow editing existing tasks',
-          priority: 'Low',
-          dueDate: '2026-06-23',
-          status: 'Completed',
-          createdAt: '2026-06-14',
-        },
-        {
-          id: 5,
-          title: 'Delete Tasks',
-          description: 'Add delete confirmation functionality',
-          priority: 'Medium',
-          dueDate: '2026-06-24',
-          status: 'Pending',
-          createdAt: '2026-06-13',
-        },
-      ];
+  const [editingKey, setEditingKey] = useState<string>('');
+  const [editData, setEditData] = useState<Partial<Task>>({});
 
-      setTasks(dummyTasks);
-      localStorage.setItem('tasks', JSON.stringify(dummyTasks));
+  const [tasks, setTasks] = useState<Task[]>([
+    {
+      key: '1',
+      title: 'Complete Dashboard',
+      description: 'Finish dashboard UI',
+      priority: 'High',
+      dueDate: '2026-06-20',
+      status: 'Pending',
+      createdAt: '2026-06-17',
+    },
+    {
+      key: '2',
+      title: 'API Integration',
+      description: 'Connect backend APIs',
+      priority: 'Medium',
+      dueDate: '2026-06-25',
+      status: 'Completed',
+      createdAt: '2026-06-16',
+    },
+  ]);
+
+  const handleAddTask = async () => {
+    try {
+      const values = await form.validateFields();
+
+      const newTask: Task = {
+        key: Date.now().toString(),
+        title: values.title,
+        description: values.description,
+        priority: values.priority,
+        dueDate: values.dueDate.format('YYYY-MM-DD'),
+        status: values.status,
+        createdAt: new Date().toISOString().split('T')[0],
+      };
+
+      setTasks((prev) => [...prev, newTask]);
+      message.success('Task added successfully');
+
+      form.resetFields();
+      setIsModalOpen(false);
+    } catch (error) {
+      console.log(error);
     }
-  }, []);
+  };
 
-  useEffect(() => {
-    const storedTasks = JSON.parse(localStorage.getItem('tasks') || '[]') || [];
-    setTasks(storedTasks);
-  }, []);
+  const handleDelete = (key: string) => {
+    Modal.confirm({
+      title: 'Delete Task',
+      content: 'Are you sure you want to delete this task?',
+      okText: 'Delete',
+      okButtonProps: { danger: true },
+      onOk: () => {
+        setTasks((prev) => prev.filter((t) => t.key !== key));
+        message.success('Task deleted successfully');
+      },
+    });
+  };
 
-  const totalTasks = tasks.length;
+  const handleEdit = (record: Task) => {
+    setEditingKey(record.key);
+    setEditData({
+      ...record,
+      dueDate: record.dueDate,
+    });
+  };
 
-  const pendingTasks = tasks.filter((task) => task.status === 'Pending').length;
+  const handleSave = () => {
+    setTasks((prev) =>
+      prev.map((task) =>
+        task.key === editingKey ? { ...task, ...editData } : task,
+      ),
+    );
 
-  const completedTasks = tasks.filter(
-    (task) => task.status === 'Completed',
-  ).length;
+    setEditingKey('');
+    setEditData({});
+    message.success('Task updated successfully');
+  };
 
-  const columns = [
+  const handleCancelEdit = () => {
+    setEditingKey('');
+    setEditData({});
+  };
+
+  const columns: ColumnsType<Task> = [
     {
       title: 'Title',
       dataIndex: 'title',
-      key: 'title',
+      render: (_, record) =>
+        editingKey === record.key ? (
+          <Input
+            value={editData.title}
+            onChange={(e) =>
+              setEditData({ ...editData, title: e.target.value })
+            }
+          />
+        ) : (
+          record.title
+        ),
     },
     {
       title: 'Description',
       dataIndex: 'description',
-      key: 'description',
+      render: (_, record) =>
+        editingKey === record.key ? (
+          <Input.TextArea
+            value={editData.description}
+            onChange={(e) =>
+              setEditData({ ...editData, description: e.target.value })
+            }
+          />
+        ) : (
+          record.description
+        ),
     },
     {
       title: 'Priority',
       dataIndex: 'priority',
-      key: 'priority',
-      render: (priority: string) => {
-        let color = 'green';
-
-        if (priority === 'High') color = 'red';
-        if (priority === 'Medium') color = 'orange';
-
-        return <Tag color={color}>{priority}</Tag>;
-      },
+      render: (_, record) =>
+        editingKey === record.key ? (
+          <Select
+            value={editData.priority}
+            style={{ width: 120 }}
+            onChange={(value) => setEditData({ ...editData, priority: value })}
+            options={[
+              { value: 'Low', label: 'Low' },
+              { value: 'Medium', label: 'Medium' },
+              { value: 'High', label: 'High' },
+            ]}
+          />
+        ) : (
+          record.priority
+        ),
     },
     {
       title: 'Due Date',
       dataIndex: 'dueDate',
-      key: 'dueDate',
+      render: (_, record) =>
+        editingKey === record.key ? (
+          <DatePicker
+            style={{ width: '100%' }}
+            value={dayjs(editData.dueDate)}
+            onChange={(date) =>
+              setEditData({
+                ...editData,
+                dueDate: date?.format('YYYY-MM-DD') || '',
+              })
+            }
+          />
+        ) : (
+          record.dueDate
+        ),
     },
     {
       title: 'Status',
       dataIndex: 'status',
-      key: 'status',
-      render: (status: string) => (
-        <Tag color={status === 'Completed' ? 'green' : 'blue'}>{status}</Tag>
-      ),
+      render: (_, record) =>
+        editingKey === record.key ? (
+          <Select
+            value={editData.status}
+            style={{ width: 120 }}
+            onChange={(value) => setEditData({ ...editData, status: value })}
+            options={[
+              { value: 'Pending', label: 'Pending' },
+              { value: 'Completed', label: 'Completed' },
+            ]}
+          />
+        ) : (
+          record.status
+        ),
     },
     {
       title: 'Created At',
       dataIndex: 'createdAt',
-      key: 'createdAt',
+      render: (_, record) => record.createdAt, // ❌ NOT EDITABLE
     },
     {
-      title: 'Action',
-      key: 'action',
-      render: (_: any, record: Task) => {
-        const items: MenuProps['items'] = [
-          {
-            key: 'update',
-            label: 'Update',
-          },
-          {
-            key: 'delete',
-            label: 'Delete',
-            danger: true,
-          },
-        ];
-
-        const handleMenuClick: MenuProps['onClick'] = ({ key }) => {
-          if (key === 'update') {
-            history.push(`/dashboard/management/update-tasks?id=${record.id}`);
-          }
-
-          if (key === 'delete') {
-            const storedTasks =
-              JSON.parse(localStorage.getItem('tasks') || '[]') || [];
-
-            const updatedTasks = storedTasks.filter(
-              (task: Task) => task.id !== record.id,
-            );
-
-            localStorage.setItem('tasks', JSON.stringify(updatedTasks));
-
-            setTasks(updatedTasks);
-          }
-        };
+      title: 'Actions',
+      key: 'actions',
+      render: (_, record) => {
+        if (editingKey === record.key) {
+          return (
+            <Space>
+              <Button type="primary" onClick={handleSave}>
+                Save
+              </Button>
+              <Button onClick={handleCancelEdit}>Cancel</Button>
+            </Space>
+          );
+        }
 
         return (
           <Dropdown
             menu={{
-              items,
-              onClick: handleMenuClick,
+              items: [
+                { key: 'update', label: 'Update' },
+                { key: 'delete', label: 'Delete', danger: true },
+              ],
+              onClick: ({ key }) => {
+                if (key === 'update') handleEdit(record);
+                if (key === 'delete') handleDelete(record.key);
+              },
             }}
-            trigger={['click']}
           >
-            <Button>
-              Action <DownOutlined />
-            </Button>
+            <Button>Actions</Button>
           </Dropdown>
         );
       },
@@ -187,49 +248,98 @@ const Dashboard = () => {
   ];
 
   return (
-    <div className="dashboard-container">
-      <div className="dashboard-header">
-        <h1 className="dashboard-title">Dashboard</h1>
-
-        <Button
-          type="primary"
-          icon={<PlusOutlined />}
-          onClick={() => history.push('/dashboard/management/create-tasks')}
-        >
-          Add Task
-        </Button>
-      </div>
-
-      <Row gutter={[16, 16]}>
-        <Col xs={24} md={8}>
-          <Card className="stat-card">
-            <Statistic title="Total Tasks" value={totalTasks} />
+    <>
+      {/* Stats */}
+      <Row gutter={16} style={{ marginBottom: 24 }}>
+        <Col span={8}>
+          <Card title="Total Tasks">
+            <h1>{tasks.length}</h1>
           </Card>
         </Col>
-
-        <Col xs={24} md={8}>
-          <Card className="stat-card">
-            <Statistic title="Pending Tasks" value={pendingTasks} />
+        <Col span={8}>
+          <Card title="Completed Tasks">
+            <h1>{tasks.filter((t) => t.status === 'Completed').length}</h1>
           </Card>
         </Col>
-
-        <Col xs={24} md={8}>
-          <Card className="stat-card">
-            <Statistic title="Completed Tasks" value={completedTasks} />
+        <Col span={8}>
+          <Card title="Pending Tasks">
+            <h1>{tasks.filter((t) => t.status === 'Pending').length}</h1>
           </Card>
         </Col>
       </Row>
 
-      <Card title="Recent Tasks" className="tasks-card">
-        <Table
-          rowKey="id"
-          columns={columns}
-          dataSource={tasks}
-          pagination={{ pageSize: 5 }}
-        />
-      </Card>
-    </div>
+      {/* Add Button */}
+      <Space
+        style={{ marginBottom: 16, width: '100%', justifyContent: 'flex-end' }}
+      >
+        <Button type="primary" onClick={() => setIsModalOpen(true)}>
+          Add Task
+        </Button>
+      </Space>
+
+      {/* Table */}
+      <Table columns={columns} dataSource={tasks} rowKey="key" />
+
+      {/* Modal */}
+      <Modal
+        title="Add Task"
+        open={isModalOpen}
+        onOk={handleAddTask}
+        onCancel={() => {
+          form.resetFields();
+          setIsModalOpen(false);
+        }}
+      >
+        <Form form={form} layout="vertical">
+          <Form.Item name="title" label="Title" rules={[{ required: true }]}>
+            <Input />
+          </Form.Item>
+
+          <Form.Item
+            name="description"
+            label="Description"
+            rules={[{ required: true }]}
+          >
+            <Input.TextArea rows={4} />
+          </Form.Item>
+
+          <Form.Item
+            name="priority"
+            label="Priority"
+            rules={[{ required: true }]}
+          >
+            <Select
+              options={[
+                { value: 'Low', label: 'Low' },
+                { value: 'Medium', label: 'Medium' },
+                { value: 'High', label: 'High' },
+              ]}
+            />
+          </Form.Item>
+
+          <Form.Item
+            name="dueDate"
+            label="Due Date"
+            rules={[{ required: true }]}
+          >
+            <DatePicker
+              style={{ width: '100%' }}
+              disabledDate={disablePastDates}
+            />
+          </Form.Item>
+
+          <Form.Item name="status" label="Status" rules={[{ required: true }]}>
+            <Select
+              options={[
+                { value: 'Pending', label: 'Pending' },
+                { value: 'Completed', label: 'Completed' },
+              ]}
+            />
+          </Form.Item>
+        </Form>
+      </Modal>
+    </>
   );
 };
 
-export default Dashboard;
+export default ViewTasks;
