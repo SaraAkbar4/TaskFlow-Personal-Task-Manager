@@ -33,6 +33,7 @@ const disablePastDates = (current: any) =>
 const ViewTasks: React.FC = () => {
   const [form] = Form.useForm();
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [searchText, setSearchText] = useState('');
 
   const [editingKey, setEditingKey] = useState<string>('');
   const [editData, setEditData] = useState<Partial<Task>>({});
@@ -58,6 +59,7 @@ const ViewTasks: React.FC = () => {
     },
   ]);
 
+  // ADD TASK
   const handleAddTask = async () => {
     try {
       const values = await form.validateFields();
@@ -77,53 +79,53 @@ const ViewTasks: React.FC = () => {
 
       form.resetFields();
       setIsModalOpen(false);
-    } catch (error) {
-      console.log(error);
+    } catch (err) {
+      console.log(err);
     }
   };
 
+  // DELETE TASK
   const handleDelete = (key: string) => {
     Modal.confirm({
       title: 'Delete Task',
-      content: 'Are you sure you want to delete this task?',
+      content: 'Are you sure?',
       okText: 'Delete',
       okButtonProps: { danger: true },
       onOk: () => {
         setTasks((prev) => prev.filter((t) => t.key !== key));
-        message.success('Task deleted successfully');
+        message.success('Task deleted');
       },
     });
   };
 
+  // EDIT TASK
   const handleEdit = (record: Task) => {
     setEditingKey(record.key);
-    setEditData({
-      ...record,
-      dueDate: record.dueDate,
-    });
+    setEditData(record);
   };
 
   const handleSave = () => {
     setTasks((prev) =>
-      prev.map((task) =>
-        task.key === editingKey ? { ...task, ...editData } : task,
-      ),
+      prev.map((t) => (t.key === editingKey ? { ...t, ...editData } : t)),
     );
 
     setEditingKey('');
     setEditData({});
-    message.success('Task updated successfully');
+    message.success('Updated successfully');
   };
 
-  const handleCancelEdit = () => {
-    setEditingKey('');
-    setEditData({});
-  };
+  const filteredTasks = tasks.filter((task) =>
+    Object.values(task)
+      .join(' ')
+      .toLowerCase()
+      .includes(searchText.toLowerCase()),
+  );
 
   const columns: ColumnsType<Task> = [
     {
       title: 'Title',
       dataIndex: 'title',
+      sorter: (a, b) => a.title.localeCompare(b.title),
       render: (_, record) =>
         editingKey === record.key ? (
           <Input
@@ -136,6 +138,7 @@ const ViewTasks: React.FC = () => {
           record.title
         ),
     },
+
     {
       title: 'Description',
       dataIndex: 'description',
@@ -144,21 +147,30 @@ const ViewTasks: React.FC = () => {
           <Input.TextArea
             value={editData.description}
             onChange={(e) =>
-              setEditData({ ...editData, description: e.target.value })
+              setEditData({
+                ...editData,
+                description: e.target.value,
+              })
             }
           />
         ) : (
           record.description
         ),
     },
+
     {
       title: 'Priority',
       dataIndex: 'priority',
+      filters: [
+        { text: 'Low', value: 'Low' },
+        { text: 'Medium', value: 'Medium' },
+        { text: 'High', value: 'High' },
+      ],
+      onFilter: (value, record) => record.priority === value,
       render: (_, record) =>
         editingKey === record.key ? (
           <Select
             value={editData.priority}
-            style={{ width: 120 }}
             onChange={(value) => setEditData({ ...editData, priority: value })}
             options={[
               { value: 'Low', label: 'Low' },
@@ -170,14 +182,16 @@ const ViewTasks: React.FC = () => {
           record.priority
         ),
     },
+
     {
       title: 'Due Date',
       dataIndex: 'dueDate',
+      sorter: (a, b) => dayjs(a.dueDate).unix() - dayjs(b.dueDate).unix(),
       render: (_, record) =>
         editingKey === record.key ? (
           <DatePicker
-            style={{ width: '100%' }}
             value={dayjs(editData.dueDate)}
+            disabledDate={disablePastDates}
             onChange={(date) =>
               setEditData({
                 ...editData,
@@ -189,14 +203,19 @@ const ViewTasks: React.FC = () => {
           record.dueDate
         ),
     },
+
     {
       title: 'Status',
       dataIndex: 'status',
+      filters: [
+        { text: 'Pending', value: 'Pending' },
+        { text: 'Completed', value: 'Completed' },
+      ],
+      onFilter: (value, record) => record.status === value,
       render: (_, record) =>
         editingKey === record.key ? (
           <Select
             value={editData.status}
-            style={{ width: 120 }}
             onChange={(value) => setEditData({ ...editData, status: value })}
             options={[
               { value: 'Pending', label: 'Pending' },
@@ -207,11 +226,12 @@ const ViewTasks: React.FC = () => {
           record.status
         ),
     },
+
     {
       title: 'Created At',
       dataIndex: 'createdAt',
-      render: (_, record) => record.createdAt, // ❌ NOT EDITABLE
     },
+
     {
       title: 'Actions',
       key: 'actions',
@@ -222,7 +242,7 @@ const ViewTasks: React.FC = () => {
               <Button type="primary" onClick={handleSave}>
                 Save
               </Button>
-              <Button onClick={handleCancelEdit}>Cancel</Button>
+              <Button onClick={() => setEditingKey('')}>Cancel</Button>
             </Space>
           );
         }
@@ -249,46 +269,51 @@ const ViewTasks: React.FC = () => {
 
   return (
     <>
-      {/* Stats */}
+      {/* STATS */}
       <Row gutter={16} style={{ marginBottom: 24 }}>
         <Col span={8}>
-          <Card title="Total Tasks">
-            <h1>{tasks.length}</h1>
+          <Card title="Total Tasks">{tasks.length}</Card>
+        </Col>
+        <Col span={8}>
+          <Card title="Completed">
+            {tasks.filter((t) => t.status === 'Completed').length}
           </Card>
         </Col>
         <Col span={8}>
-          <Card title="Completed Tasks">
-            <h1>{tasks.filter((t) => t.status === 'Completed').length}</h1>
-          </Card>
-        </Col>
-        <Col span={8}>
-          <Card title="Pending Tasks">
-            <h1>{tasks.filter((t) => t.status === 'Pending').length}</h1>
+          <Card title="Pending">
+            {tasks.filter((t) => t.status === 'Pending').length}
           </Card>
         </Col>
       </Row>
 
-      {/* Add Button */}
+      {/* SEARCH + ADD */}
       <Space
-        style={{ marginBottom: 16, width: '100%', justifyContent: 'flex-end' }}
+        style={{
+          marginBottom: 16,
+          width: '100%',
+          justifyContent: 'space-between',
+        }}
       >
+        <Input
+          placeholder="Search tasks..."
+          style={{ width: 300 }}
+          onChange={(e) => setSearchText(e.target.value)}
+        />
+
         <Button type="primary" onClick={() => setIsModalOpen(true)}>
           Add Task
         </Button>
       </Space>
 
-      {/* Table */}
-      <Table columns={columns} dataSource={tasks} rowKey="key" />
+      {/* TABLE */}
+      <Table columns={columns} dataSource={filteredTasks} rowKey="key" />
 
-      {/* Modal */}
+      {/* MODAL */}
       <Modal
         title="Add Task"
         open={isModalOpen}
         onOk={handleAddTask}
-        onCancel={() => {
-          form.resetFields();
-          setIsModalOpen(false);
-        }}
+        onCancel={() => setIsModalOpen(false)}
       >
         <Form form={form} layout="vertical">
           <Form.Item name="title" label="Title" rules={[{ required: true }]}>
@@ -300,7 +325,7 @@ const ViewTasks: React.FC = () => {
             label="Description"
             rules={[{ required: true }]}
           >
-            <Input.TextArea rows={4} />
+            <Input.TextArea />
           </Form.Item>
 
           <Form.Item
@@ -310,9 +335,9 @@ const ViewTasks: React.FC = () => {
           >
             <Select
               options={[
-                { value: 'Low', label: 'Low' },
-                { value: 'Medium', label: 'Medium' },
-                { value: 'High', label: 'High' },
+                { value: 'Low' },
+                { value: 'Medium' },
+                { value: 'High' },
               ]}
             />
           </Form.Item>
@@ -323,18 +348,13 @@ const ViewTasks: React.FC = () => {
             rules={[{ required: true }]}
           >
             <DatePicker
-              style={{ width: '100%' }}
               disabledDate={disablePastDates}
+              style={{ width: '100%' }}
             />
           </Form.Item>
 
           <Form.Item name="status" label="Status" rules={[{ required: true }]}>
-            <Select
-              options={[
-                { value: 'Pending', label: 'Pending' },
-                { value: 'Completed', label: 'Completed' },
-              ]}
-            />
+            <Select options={[{ value: 'Pending' }, { value: 'Completed' }]} />
           </Form.Item>
         </Form>
       </Modal>
